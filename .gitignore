@@ -1,0 +1,55 @@
+# -------------------------------
+# Python
+# -------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+*.egg-info/
+dist/
+build/
+
+# -------------------------------
+# Virtual environments
+# -------------------------------
+venv/
+.env/
+.env.local
+.env.*.local
+
+# -------------------------------
+# Docker
+# -------------------------------
+docker/postgres/data/
+docker/postgres/*.pid
+docker/postgres/*.sock
+docker/postgres/*.log
+
+# -------------------------------
+# Data
+# -------------------------------
+data/raw/
+data/processed/
+data/checkpoints/
+
+# -------------------------------
+# IDEs / OS
+# -------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# -------------------------------
+# Logs and temp files
+# -------------------------------
+*.log
+*.tmp
+*.bak
+
+
+
+
+.env.example
