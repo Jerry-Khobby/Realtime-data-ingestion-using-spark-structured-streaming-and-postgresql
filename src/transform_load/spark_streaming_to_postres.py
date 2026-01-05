@@ -1,16 +1,22 @@
-from pyspark.sql import SparkSession,Row
+from pyspark.sql import SparkSession, Row
 from pyspark.sql.types import (
     StructType, StructField,
     StringType, IntegerType,
     DoubleType, TimestampType
 )
 from pyspark.sql.functions import col, current_timestamp
-import os 
-import logging 
+import os
+import logging
 
 
-LOG_DIR = "/logs"
-os.makedirs(LOG_DIR,exist_ok=True)
+
+DATA_DIR = "data/raw"
+CHECKPOINT_DIR = "data/checkpoints"
+LOG_DIR = "data/logs"
+
+os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+
 
 
 logging.basicConfig(
@@ -29,6 +35,7 @@ spark = (
 
 spark.sparkContext.setLogLevel("WARN")
 
+
 schema = StructType([
     StructField("event_id", StringType(), False),
     StructField("user_id", IntegerType(), True),
@@ -41,13 +48,13 @@ schema = StructType([
 ])
 
 
+
 events_df = (
     spark.readStream
     .schema(schema)
     .option("header", True)
-    .csv("/data/raw")
+    .csv(DATA_DIR)
 )
-
 
 clean_df = (
     events_df
@@ -56,8 +63,10 @@ clean_df = (
     .filter(col("event_id").isNotNull())
 )
 
-
-def read_postgres_config(path="../postgres_connection_details.txt"):
+# -----------------------------
+# PostgreSQL Config
+# -----------------------------
+def read_postgres_config(path="postgres_connection_details.txt"):
     config = {}
     with open(path, "r") as f:
         for line in f:
@@ -66,20 +75,28 @@ def read_postgres_config(path="../postgres_connection_details.txt"):
     return config
 
 config = read_postgres_config()
-jdbc_url = f"jdbc:postgresql://{config['host']}:{config['port']}/{config['database']}"
+
+jdbc_url = (
+    f"jdbc:postgresql://{config['host']}:"
+    f"{config['port']}/{config['database']}"
+)
+
 jdbc_properties = {
     "user": config["user"],
     "password": config["password"],
     "driver": "org.postgresql.Driver"
 }
 
-
-
+# -----------------------------
+# Write to PostgreSQL
+# -----------------------------
 def write_to_postgres(batch_df, batch_id):
     rows_written = 0
     error_msg = None
+
     try:
         rows_written = batch_df.count()
+
         if rows_written > 0:
             batch_df.write.jdbc(
                 url=jdbc_url,
@@ -87,14 +104,22 @@ def write_to_postgres(batch_df, batch_id):
                 mode="append",
                 properties=jdbc_properties
             )
+
+        logger.info(f"Batch {batch_id} written | rows={rows_written}")
+
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"Batch {batch_id}: {error_msg}", exc_info=True)
+        logger.error(f"Batch {batch_id} failed", exc_info=True)
+
     finally:
-        # Write batch log to PostgreSQL
         log_df = spark.createDataFrame([
-            Row(batch_id=batch_id, rows_written=rows_written, error_message=error_msg)
+            Row(
+                batch_id=batch_id,
+                rows_written=rows_written,
+                error_message=error_msg
+            )
         ])
+
         log_df.write.jdbc(
             url=jdbc_url,
             table="streaming_logs",
@@ -102,13 +127,14 @@ def write_to_postgres(batch_df, batch_id):
             properties=jdbc_properties
         )
 
-
-
+# -----------------------------
+# Start Streaming
+# -----------------------------
 query = (
     clean_df.writeStream
     .foreachBatch(write_to_postgres)
     .outputMode("append")
-    .option("checkpointLocation", "/data/checkpoints")
+    .option("checkpointLocation", CHECKPOINT_DIR)
     .start()
 )
 
