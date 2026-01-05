@@ -6,11 +6,9 @@ import random
 import logging
 from datetime import datetime
 
-# -----------------------------
-# Configuration
-# -----------------------------
+
 OUTPUT_DIR = "../../data/raw"
-LOG_DIR = "../../monitoring/logs"
+LOG_DIR = "../../logs"
 LOG_FILE = os.path.join(LOG_DIR, "data_generator.log")
 
 EVENTS_PER_FILE = 10

@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: docker/postgres/Dockerfile
+    container_name: postgres
+    environment:
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: spark_user
+      POSTGRES_PASSWORD: spark_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - streaming_net
+
+  spark:
+    build:
+      context: .
+      dockerfile: docker/spark/Dockerfile
+    container_name: spark
+    depends_on:
+      - postgres
+    volumes:
+      - ./data:/data
+      - ./src/transform:/opt/spark-apps
+      - ./data/logs:/logs
+    command: >
+      spark-submit
+      --master local[*]
+      /opt/spark-apps/spark_streaming_to_postgres.py
+    networks:
+      - streaming_net
+
+volumes:
+  postgres_data:
+
+networks:
+  streaming_net:
