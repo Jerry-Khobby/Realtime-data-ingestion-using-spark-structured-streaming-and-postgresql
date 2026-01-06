@@ -30,7 +30,6 @@ services:
       - ./logs:/logs # <- mapped standalone logs folder
       - ./data/checkpoints:/data/checkpoints
       - ./src/transform_load:/opt/spark-apps
-      - ./src/config/postgres_connection_details.txt:/opt/spark-apps/postgres_connection_details.txt
     command: >
       spark-submit
       --master local[*]

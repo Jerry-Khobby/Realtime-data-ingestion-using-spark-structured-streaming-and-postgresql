@@ -2,14 +2,13 @@ FROM octoenergy/pyspark:4.0.0
 
 USER root
 
-# Add PostgreSQL JDBC driver
-COPY jars/postgresql-42.7.8.jar /opt/spark/jars/
+# Install psycopg2
+RUN pip install --no-cache-dir psycopg2-binary
 
 # Create necessary directories
 RUN mkdir -p /opt/spark-apps /data/checkpoints /logs && \
   chown -R 1000:1000 /opt/spark-apps /data /logs
 
-# Set working directory
 WORKDIR /opt/spark-apps
 
 USER 1000

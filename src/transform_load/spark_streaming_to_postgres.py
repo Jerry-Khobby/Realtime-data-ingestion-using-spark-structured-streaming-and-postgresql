@@ -7,6 +7,7 @@ from pyspark.sql.types import (
 from pyspark.sql.functions import col, current_timestamp
 import os
 import logging
+import psycopg2
 
 # Directories
 DATA_DIR = "/data/raw"
@@ -55,14 +56,12 @@ events_df = (
     .csv(DATA_DIR)
 )
 
-
 clean_df = (
     events_df
     .withColumn("event_timestamp", col("event_timestamp").cast(TimestampType()))
     .withColumn("ingestion_time", current_timestamp())
     .filter(col("event_id").isNotNull())
 )
-
 
 def read_postgres_config():
     """Read PostgreSQL config from environment variables"""
@@ -73,8 +72,7 @@ def read_postgres_config():
         'user': os.getenv('POSTGRES_USER'),
         'password': os.getenv('POSTGRES_PASSWORD')
     }
-    
-    
+
     if not config['user'] or not config['password']:
         raise ValueError("POSTGRES_USER and POSTGRES_PASSWORD must be set")
     
@@ -83,61 +81,70 @@ def read_postgres_config():
 
 config = read_postgres_config()
 
-# Build JDBC URL
-jdbc_url = (
-    f"jdbc:postgresql://{config['host']}:"
-    f"{config['port']}/{config['database']}"
-)
 
-jdbc_properties = {
-    "user": config["user"],
-    "password": config["password"],
-    "driver": "org.postgresql.Driver"
-}
 
-# Function to write each batch to PostgreSQL
+# Function to write each batch using psycopg2
 def write_to_postgres(batch_df, batch_id):
     rows_written = 0
     error_msg = None
 
     try:
         rows_written = batch_df.count()
-
         if rows_written > 0:
-            batch_df.write.jdbc(
-                url=jdbc_url,
-                table="ecommerce_events",
-                mode="append",
-                properties=jdbc_properties
+            rows = [tuple(row) for row in batch_df.collect()]
+            conn = psycopg2.connect(
+                host=config['host'],
+                port=config['port'],
+                dbname=config['database'],
+                user=config['user'],
+                password=config['password']
             )
-
-        logger.info(f"Batch {batch_id} written | rows={rows_written}")
+            cursor = conn.cursor()
+            insert_sql = """
+                INSERT INTO ecommerce_events
+                (event_id, user_id, product_id, event_type, event_timestamp, price, quantity, currency, ingestion_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.executemany(insert_sql, rows)
+            conn.commit()
+            cursor.close()
+            conn.close()
 
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Batch {batch_id} failed: {error_msg}", exc_info=True)
 
     finally:
-        # Log batch processing results
-        log_df = spark.createDataFrame([
-            Row(
-                batch_id=batch_id,
-                rows_written=rows_written,
-                error_message=error_msg
-            )
+        # Use explicit schema for log_df
+        log_schema = StructType([
+            StructField("batch_id", IntegerType(), True),
+            StructField("rows_written", IntegerType(), True),
+            StructField("error_message", StringType(), True)
         ])
+        log_df = spark.createDataFrame([(batch_id, rows_written, error_msg)], schema=log_schema)
 
         try:
-            log_df.write.jdbc(
-                url=jdbc_url,
-                table="streaming_logs",
-                mode="append",
-                properties=jdbc_properties
+            log_rows = [tuple(row) for row in log_df.collect()]
+            conn = psycopg2.connect(
+                host=config['host'],
+                port=config['port'],
+                dbname=config['database'],
+                user=config['user'],
+                password=config['password']
             )
+            cursor = conn.cursor()
+            cursor.executemany("""
+                INSERT INTO streaming_logs
+                (batch_id, rows_written, error_message)
+                VALUES (%s, %s, %s)
+            """, log_rows)
+            conn.commit()
+            cursor.close()
+            conn.close()
         except Exception as log_error:
             logger.error(f"Failed to write log for batch {batch_id}: {log_error}")
 
-# Start the streaming query
+# Start streaming query
 logger.info("Starting streaming query...")
 query = (
     clean_df.writeStream
