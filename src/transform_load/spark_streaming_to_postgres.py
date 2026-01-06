@@ -8,17 +8,16 @@ from pyspark.sql.functions import col, current_timestamp
 import os
 import logging
 
+# Directories
+DATA_DIR = "/data/raw"
+CHECKPOINT_DIR = "/data/checkpoints"
+LOG_DIR = "/logs"
 
-
-DATA_DIR = "data/raw"
-CHECKPOINT_DIR = "data/checkpoints"
-LOG_DIR = "data/logs"
-
+# Create necessary directories
 os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
-
-
+# Setup logging
 logging.basicConfig(
     filename=os.path.join(LOG_DIR, "spark_streaming.log"),
     level=logging.INFO,
@@ -26,16 +25,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
+# Initialize Spark Session
 spark = (
     SparkSession.builder
     .appName("EcommerceStreamingToPostgres")
+    .config("spark.sql.streaming.checkpointLocation", CHECKPOINT_DIR)
     .getOrCreate()
 )
 
 spark.sparkContext.setLogLevel("WARN")
 
-
+# Define schema
 schema = StructType([
     StructField("event_id", StringType(), False),
     StructField("user_id", IntegerType(), True),
@@ -47,14 +47,14 @@ schema = StructType([
     StructField("currency", StringType(), True),
 ])
 
-
-
+# Read streaming data
 events_df = (
     spark.readStream
     .schema(schema)
     .option("header", True)
     .csv(DATA_DIR)
 )
+
 
 clean_df = (
     events_df
@@ -63,19 +63,27 @@ clean_df = (
     .filter(col("event_id").isNotNull())
 )
 
-# -----------------------------
-# PostgreSQL Config
-# -----------------------------
-def read_postgres_config(path="postgres_connection_details.txt"):
-    config = {}
-    with open(path, "r") as f:
-        for line in f:
-            key, val = line.strip().split("=")
-            config[key] = val
+
+def read_postgres_config():
+    """Read PostgreSQL config from environment variables"""
+    config = {
+        'host': os.getenv('POSTGRES_HOST', 'postgres'),
+        'port': os.getenv('POSTGRES_PORT', '5432'),
+        'database': os.getenv('POSTGRES_DB', 'ecommerce'),
+        'user': os.getenv('POSTGRES_USER'),
+        'password': os.getenv('POSTGRES_PASSWORD')
+    }
+    
+    
+    if not config['user'] or not config['password']:
+        raise ValueError("POSTGRES_USER and POSTGRES_PASSWORD must be set")
+    
+    logger.info(f"Connecting to PostgreSQL at {config['host']}:{config['port']}/{config['database']}")
     return config
 
 config = read_postgres_config()
 
+# Build JDBC URL
 jdbc_url = (
     f"jdbc:postgresql://{config['host']}:"
     f"{config['port']}/{config['database']}"
@@ -87,9 +95,7 @@ jdbc_properties = {
     "driver": "org.postgresql.Driver"
 }
 
-# -----------------------------
-# Write to PostgreSQL
-# -----------------------------
+# Function to write each batch to PostgreSQL
 def write_to_postgres(batch_df, batch_id):
     rows_written = 0
     error_msg = None
@@ -109,9 +115,10 @@ def write_to_postgres(batch_df, batch_id):
 
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"Batch {batch_id} failed", exc_info=True)
+        logger.error(f"Batch {batch_id} failed: {error_msg}", exc_info=True)
 
     finally:
+        # Log batch processing results
         log_df = spark.createDataFrame([
             Row(
                 batch_id=batch_id,
@@ -120,16 +127,18 @@ def write_to_postgres(batch_df, batch_id):
             )
         ])
 
-        log_df.write.jdbc(
-            url=jdbc_url,
-            table="streaming_logs",
-            mode="append",
-            properties=jdbc_properties
-        )
+        try:
+            log_df.write.jdbc(
+                url=jdbc_url,
+                table="streaming_logs",
+                mode="append",
+                properties=jdbc_properties
+            )
+        except Exception as log_error:
+            logger.error(f"Failed to write log for batch {batch_id}: {log_error}")
 
-# -----------------------------
-# Start Streaming
-# -----------------------------
+# Start the streaming query
+logger.info("Starting streaming query...")
 query = (
     clean_df.writeStream
     .foreachBatch(write_to_postgres)
@@ -138,4 +147,5 @@ query = (
     .start()
 )
 
+logger.info("Streaming query started. Waiting for termination...")
 query.awaitTermination()

@@ -1,10 +1,19 @@
--- ecommerce_events
-CREATE DATABASE ecommerce;
-CREATE USER spark_user WITH PASSWORD 'spark_pass';
+-- Create user safely
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT FROM pg_roles WHERE rolname = 'spark_user'
+    ) THEN
+        CREATE USER spark_user WITH PASSWORD 'spark_pass';
+    END IF;
+END
+$$;
+
+-- Grant privileges
 GRANT ALL PRIVILEGES ON DATABASE ecommerce TO spark_user;
+GRANT USAGE, CREATE ON SCHEMA public TO spark_user;
 
-
-
+-- Tables
 CREATE TABLE IF NOT EXISTS ecommerce_events (
     event_id UUID PRIMARY KEY,
     user_id INT,
@@ -17,10 +26,9 @@ CREATE TABLE IF NOT EXISTS ecommerce_events (
     ingestion_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- streaming_logs
 CREATE TABLE IF NOT EXISTS streaming_logs (
     batch_id BIGINT,
     rows_written INT,
     error_message TEXT,
-    log_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
