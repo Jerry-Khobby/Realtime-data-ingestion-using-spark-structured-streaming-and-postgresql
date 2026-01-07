@@ -5,29 +5,30 @@ import uuid
 import random
 import logging
 from datetime import datetime
+from pathlib import Path
 
-
-OUTPUT_DIR = "../../data/raw"
-LOG_DIR = "../../logs"
-LOG_FILE = os.path.join(LOG_DIR, "data_generator.log")
+# Use absolute path based on script location
+SCRIPT_DIR = Path(__file__).parent.resolve()
+PROJECT_ROOT = SCRIPT_DIR.parent.parent  # Go up to project root
+OUTPUT_DIR = PROJECT_ROOT / "data" / "raw"
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_FILE = LOG_DIR / "data_generator.log"
 
 EVENTS_PER_FILE = 10
 SLEEP_SECONDS = 3
 
 EVENT_TYPES = ["view", "purchase"]
-CURRENCIES = ["USD"]
 
-
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(LOG_DIR, exist_ok=True)
-
+# Create directories
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
     handlers=[
         logging.FileHandler(LOG_FILE),
-        logging.StreamHandler()  
+        logging.StreamHandler()
     ]
 )
 
@@ -35,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 def generate_event():
     event_type = random.choice(EVENT_TYPES)
-
     return {
         "event_id": str(uuid.uuid4()),
         "user_id": random.randint(1, 100),
@@ -47,27 +47,22 @@ def generate_event():
         "currency": "USD" if event_type == "purchase" else ""
     }
 
-
-logger.info("Starting data generator service")
+logger.info(f"Starting data generator service")
+logger.info(f"Output directory: {OUTPUT_DIR}")
+logger.info(f"Log directory: {LOG_DIR}")
 
 while True:
     try:
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         filename = f"events_{timestamp}.csv"
-        filepath = os.path.join(OUTPUT_DIR, filename)
+        filepath = OUTPUT_DIR / filename
 
         with open(filepath, mode="w", newline="") as file:
             writer = csv.DictWriter(
                 file,
                 fieldnames=[
-                    "event_id",
-                    "user_id",
-                    "product_id",
-                    "event_type",
-                    "event_timestamp",
-                    "price",
-                    "quantity",
-                    "currency"
+                    "event_id", "user_id", "product_id", "event_type",
+                    "event_timestamp", "price", "quantity", "currency"
                 ]
             )
             writer.writeheader()
@@ -75,8 +70,7 @@ while True:
             for _ in range(EVENTS_PER_FILE):
                 writer.writerow(generate_event())
 
-        logger.info(f"Generated file: {filename} with {EVENTS_PER_FILE} events")
-
+        logger.info(f"Generated file: {filepath} with {EVENTS_PER_FILE} events")
         time.sleep(SLEEP_SECONDS)
 
     except Exception as e:
