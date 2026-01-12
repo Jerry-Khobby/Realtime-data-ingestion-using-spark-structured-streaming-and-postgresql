@@ -1,0 +1,107 @@
+PS C:\WINDOWS\System32> docker exec -it postgres psql -U spark_user -d ecommerce
+psql (15.15 (Debian 15.15-1.pgdg13+1))
+Type "help" for help.
+
+ecommerce=# \dt
+SELECT COUNT(*) FROM ecommerce_events;
+SELECT COUNT(*) FROM streaming_logs;
+Did not find any relation named "SELECT".
+\dt: extra argument "COUNT(*)" ignored
+\dt: extra argument "FROM" ignored
+\dt: extra argument "ecommerce_events;" ignored
+\dt: extra argument "SELECT" ignored
+\dt: extra argument "COUNT(*)" ignored
+\dt: extra argument "FROM" ignored
+\dt: extra argument "streaming_logs;" ignored
+ecommerce=# \dt
+               List of relations
+ Schema |       Name       | Type  |   Owner
+--------+------------------+-------+------------
+ public | ecommerce_events | table | spark_user
+ public | streaming_logs   | table | spark_user
+(2 rows)
+
+ecommerce=# SELECT COUNT(*) FROM ecommerce_events;
+ count
+-------
+   110
+(1 row)
+
+ecommerce=# SELECT COUNT(*) FROM streaming_logs;
+ count
+-------
+    11
+(1 row)
+
+ecommerce=# SELECT COUNT(*) FROM ecommerce_events;
+ count
+-------
+   110
+(1 row)
+
+ecommerce=# SELECT
+  current_database() AS database,
+  current_user AS user,
+  current_schema() AS schema,
+  NOW() AS checked_at;
+ database  |    user    | schema |          checked_at
+-----------+------------+--------+-------------------------------
+ ecommerce | spark_user | public | 2026-01-12 08:22:00.192568+00
+(1 row)
+
+ecommerce=# SELECT
+  event_id,
+  user_id,
+  product_id,
+  event_type,
+  price,
+  quantity,
+  ingestion_time
+FROM ecommerce_events
+ORDER BY ingestion_time DESC
+LIMIT 20;
+ecommerce=# EXPLAIN ANALYZE
+SELECT *
+FROM ecommerce_events
+WHERE event_type = 'purchase'
+ORDER BY ingestion_time DESC
+LIMIT 10;
+ecommerce=# SELECT
+  DATE_TRUNC('minute', ingestion_time) AS minute,
+  COUNT(*) AS events_per_minute
+FROM ecommerce_events
+GROUP BY minute
+ORDER BY minute DESC
+LIMIT 10;
+       minute        | events_per_minute
+---------------------+-------------------
+ 2026-01-12 08:15:00 |               110
+(1 row)
+
+ecommerce=# SELECT
+  event_id,
+  user_id,
+  product_id,
+  event_type,
+  price,
+  quantity,
+  ingestion_time
+FROM ecommerce_events
+ORDER BY ingestion_time DESC
+LIMIT 20;
+ecommerce=# SELECT
+  event_id,
+  user_id,
+  product_id,
+  event_type,
+  price,
+  quantity,
+  ingestion_time
+FROM ecommerce_events
+ORDER BY ingestion_time DESC
+LIMIT 50;
+ecommerce=#
+PS C:\WINDOWS\System32>
+ docker-compose down -v
+ docker-compose logs -f spark  
+ docker-compose up --build -d                                   
