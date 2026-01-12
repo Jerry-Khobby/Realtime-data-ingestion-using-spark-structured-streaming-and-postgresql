@@ -3,7 +3,7 @@ FROM octoenergy/pyspark:4.0.0
 USER root
 
 # Install psycopg2
-RUN pip install --no-cache-dir psycopg2-binary
+RUN pip install --no-cache-dir python-dotenv psycopg2-binary
 
 # Create necessary directories
 RUN mkdir -p /opt/spark-apps /data/checkpoints /logs && \

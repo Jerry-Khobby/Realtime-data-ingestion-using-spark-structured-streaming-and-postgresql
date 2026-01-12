@@ -8,23 +8,44 @@ from pyspark.sql.functions import col, current_timestamp
 import os
 import logging
 import psycopg2
+from dotenv import load_dotenv
+load_dotenv() 
 
-# Directories
+
+
+
+
 DATA_DIR = "/data/raw"
 CHECKPOINT_DIR = "/data/checkpoints"
 LOG_DIR = "/logs"
 
-# Create necessary directories
+
 os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
-# Setup logging
+
 logging.basicConfig(
     filename=os.path.join(LOG_DIR, "spark_streaming.log"),
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# Log startup info
+logger.info("="*60)
+logger.info("Starting Spark Streaming Application")
+logger.info(f"Data directory: {DATA_DIR}")
+logger.info(f"Checkpoint directory: {CHECKPOINT_DIR}")
+logger.info(f"Log directory: {LOG_DIR}")
+
+# Check if data directory exists and list files
+if os.path.exists(DATA_DIR):
+    files = os.listdir(DATA_DIR)
+    logger.info(f"Files currently in {DATA_DIR}: {files if files else 'NONE - waiting for new files'}")
+else:
+    logger.error(f"ERROR: Directory {DATA_DIR} does not exist!")
+
+logger.info("="*60)
 
 # Initialize Spark Session
 spark = (
@@ -35,6 +56,7 @@ spark = (
 )
 
 spark.sparkContext.setLogLevel("WARN")
+logger.info("Spark session initialized")
 
 # Define schema
 schema = StructType([
@@ -49,6 +71,7 @@ schema = StructType([
 ])
 
 # Read streaming data
+logger.info(f"Setting up stream to read from: {DATA_DIR}")
 events_df = (
     spark.readStream
     .schema(schema)
@@ -66,9 +89,9 @@ clean_df = (
 def read_postgres_config():
     """Read PostgreSQL config from environment variables"""
     config = {
-        'host': os.getenv('POSTGRES_HOST', 'postgres'),
-        'port': os.getenv('POSTGRES_PORT', '5432'),
-        'database': os.getenv('POSTGRES_DB', 'ecommerce'),
+        'host': os.getenv('POSTGRES_HOST'),
+        'port': os.getenv('POSTGRES_PORT'),
+        'database': os.getenv('POSTGRES_DB'),
         'user': os.getenv('POSTGRES_USER'),
         'password': os.getenv('POSTGRES_PASSWORD')
     }
@@ -81,15 +104,16 @@ def read_postgres_config():
 
 config = read_postgres_config()
 
-
-
 # Function to write each batch using psycopg2
 def write_to_postgres(batch_df, batch_id):
+    logger.info(f"Processing batch {batch_id}")
     rows_written = 0
     error_msg = None
 
     try:
         rows_written = batch_df.count()
+        logger.info(f"Batch {batch_id}: Found {rows_written} rows")
+        
         if rows_written > 0:
             rows = [tuple(row) for row in batch_df.collect()]
             conn = psycopg2.connect(
@@ -109,6 +133,9 @@ def write_to_postgres(batch_df, batch_id):
             conn.commit()
             cursor.close()
             conn.close()
+            logger.info(f"Batch {batch_id}: Successfully wrote {rows_written} rows to PostgreSQL")
+        else:
+            logger.info(f"Batch {batch_id}: No rows to write")
 
     except Exception as e:
         error_msg = str(e)
@@ -154,5 +181,6 @@ query = (
     .start()
 )
 
-logger.info("Streaming query started. Waiting for termination...")
+logger.info("Streaming query started successfully. Waiting for new files...")
+logger.info(f"Monitoring directory: {DATA_DIR}")
 query.awaitTermination()
