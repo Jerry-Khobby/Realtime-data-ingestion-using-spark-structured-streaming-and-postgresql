@@ -1,7 +1,3 @@
-Here’s a **concise version of your User Guide** that sticks strictly to the user-facing steps for this project, removing long troubleshooting, optimization, and extra references:
-
----
-
 # User Guide: Real-Time Data Ingestion Pipeline
 
 ## Prerequisites
@@ -45,7 +41,6 @@ POSTGRES_DB=ecommerce
 POSTGRES_USER=spark_user
 POSTGRES_PASSWORD=spark_pass
 ```
-
 ---
 
 ### 2. Build and Start Services
