@@ -9,9 +9,7 @@
 ---
 
 ## Project Structure
-
 Below is the directory structure of the project:
-
 ```
 project_root/
 │
@@ -30,9 +28,7 @@ project_root/
 │   ├── performance_metrics.md
 │   └── system_architecture.png
 │
-├── docker/
-│   ├── spark/            # Spark Dockerfile and configuration
-│   └── postgresql/       # PostgreSQL Dockerfile and configuration
+├──Dockerfile
 │
 ├── etl/
 │   ├── extract/          # Scripts for extracting raw data
@@ -94,18 +90,5 @@ project_root/
 
 
 And a **simplified pipeline flow**:
-
-```
-[Data Generator] ---> [data/raw/ CSV files]
-                            |
-                            v
-                 [Spark Structured Streaming]
-                            |
-                            v
-                  [Data Transform & Load]
-                            |
-                            v
-                  [PostgreSQL Database]
-```
-
+![System Architecture](./deliverables/system_architecture.png)
 
