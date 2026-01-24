@@ -1,8 +1,6 @@
 services:
   postgres:
-    build:
-      context: .
-      dockerfile: docker/postgres/Dockerfile
+    image: postgres:15
     container_name: postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -12,42 +10,40 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./data:/data
-      - ./logs:/logs
+      - ./database/postgres_setup.sql:/docker-entrypoint-initdb.d/postgres_setup.sql
     networks:
       - spark_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   spark:
     build:
       context: .
-      dockerfile: docker/spark/Dockerfile
+      dockerfile: Dockerfile
     container_name: spark
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - ./data:/data
-      - ./logs:/logs
+      - ./data/raw:/data/raw
       - ./data/checkpoints:/data/checkpoints
-      - ./etl/transform_load:/opt/spark-apps
-      - ./.env:/opt/spark-apps/.env
-    command: >
-      spark-submit
-      --master local[*]
-      /opt/spark-apps/spark_streaming_to_postgres.py
+      - ./logs:/logs
+      - ./etl:/opt/spark-apps/etl # Mount for live code updates
+    ports:
+      - "4040:4040" # Spark UI
     networks:
       - spark_network
+    stdin_open: true
+    tty: true
 
 volumes:
   postgres_data:

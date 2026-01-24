@@ -7,12 +7,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict
 
-
-SCRIPT_DIR = Path(__file__).parent.resolve()
-PROJECT_ROOT = SCRIPT_DIR.parent.parent
-OUTPUT_DIR = PROJECT_ROOT / "data" / "raw"
-LOG_DIR = PROJECT_ROOT / "logs"
+OUTPUT_DIR = Path("/data/raw")
+LOG_DIR = Path("/logs")
 LOG_FILE = LOG_DIR / "data_generator.log"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 
 
 EVENTS_PER_FILE = 10
