@@ -23,6 +23,8 @@ COPY main.py /opt/spark-apps/main.py
 
 WORKDIR /opt/spark-apps
 
+
+ENV PYTHONPATH=/opt/spark-apps
 USER 1000
 
 # Keep container running

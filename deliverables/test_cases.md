@@ -47,7 +47,7 @@ docker-compose exec postgres psql -U spark_user -d ecommerce -c "\d streaming_lo
 
 ```bash
 # Run generator in detached mode
-docker-compose exec -d spark python /opt/spark-apps/etl/extract/data_generation.py
+docker-compose exec -it spark python /opt/spark-apps/etl/extract/data_generation.py
 
 # Wait 10 seconds
 sleep 10

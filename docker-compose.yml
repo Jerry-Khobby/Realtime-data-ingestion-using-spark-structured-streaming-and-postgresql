@@ -18,6 +18,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   spark:
     build:
@@ -39,11 +40,12 @@ services:
       - ./logs:/logs
       - ./etl:/opt/spark-apps/etl # Mount for live code updates
     ports:
-      - "4040:4040" # Spark UI
+      - "4050:4050" # Spark UI
     networks:
       - spark_network
     stdin_open: true
     tty: true
+    restart: unless-stopped
 
 volumes:
   postgres_data:
